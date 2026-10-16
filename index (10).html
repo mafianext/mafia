@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Мафия — игра для ведущего</title>
+<meta name="description" content="Party game Mafia: deal roles, run nights and votes, read the story aloud. Works offline on one phone.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌙</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Yeseva+One&display=swap&subset=cyrillic" rel="stylesheet">
+<style>
+:root {
+  --display: "Yeseva One", "Georgia", "Times New Roman", serif;
+  --body: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+*, *::before, *::after { box-sizing: inherit; }
+
+/* Day: a pale washed sky, brick red for blood and decisions */
+body[data-theme="day"] {
+  color-scheme: light;
+  --bg: #E3EBEE; --surface: #F6F9FA; --ink: #1B2630; --muted: #586973;
+  --line: #C3D0D7; --accent: #A3322A; --on-accent: #FFF6F2; --soft: #D5E0E5;
+  --good: #2F6B4F;
+}
+@media (prefers-color-scheme: dark) {
+  body[data-theme="day"] {
+    color-scheme: dark;
+    --bg: #1D252B; --surface: #263038; --ink: #E5ECEF; --muted: #97A6AF;
+    --line: #394651; --accent: #E06A5D; --on-accent: #1D1312; --soft: #2E3942;
+    --good: #7FC4A0;
+  }
+}
+/* Night: deep indigo, moonlight gold */
+body[data-theme="night"] {
+  color-scheme: dark;
+  --bg: #131934; --surface: #1D2547; --ink: #ECE8DB; --muted: #9AA1C0;
+  --line: #333D68; --accent: #F0C35A; --on-accent: #1A1830; --soft: #262F57;
+  --good: #8FD3AE;
+}
+
+html { -webkit-text-size-adjust: 100%; height: 100%; }
+body {
+  margin: 0; min-height: 100%;
+  background: var(--bg); color: var(--ink);
+  font: 400 17px/1.5 var(--body);
+  transition: background-color .7s ease, color .7s ease;
+}
+@media (prefers-reduced-motion: reduce) { body, * { transition: none !important; animation: none !important; } }
+
+.wrap { max-width: 560px; margin: 0 auto; padding: 18px 18px 132px; }
+h1, h2, h3 { font-weight: 400; margin: 0; }
+h2 { font: 400 24px/1.2 var(--display); margin: 28px 0 10px; }
+p { margin: 0 0 12px; }
+.muted { color: var(--muted); }
+.small { font-size: 14px; }
+
+/* top bar */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.top .back { margin-left: -8px; }
+.brand { font: 400 clamp(52px, 16vw, 76px)/1 var(--display); letter-spacing: -.01em; margin: 18px 0 6px; }
+.tagline { color: var(--muted); max-width: 32ch; }
+
+/* phase headline: the one loud thing */
+.phase { margin: 14px 0 18px; }
+.phase .glyph { font-size: 40px; line-height: 1; display: block; margin-bottom: 6px; }
+.phase h1 { font: 400 clamp(44px, 13vw, 64px)/1 var(--display); }
+.phase .sub { color: var(--muted); margin-top: 8px; }
+
+/* buttons */
+button { font: inherit; color: inherit; }
+.btn {
+  appearance: none; border: 1.5px solid var(--line); background: transparent;
+  border-radius: 12px; padding: 11px 16px; min-height: 46px; cursor: pointer;
+  font-weight: 500; text-align: center;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+.btn.primary:disabled { opacity: .45; cursor: not-allowed; }
+.btn.block { display: block; width: 100%; }
+.btn.quiet { border-color: transparent; color: var(--muted); padding-left: 8px; padding-right: 8px; }
+.btn.danger { color: var(--accent); }
+.row { display: flex; gap: 10px; flex-wrap: wrap; }
+.row > .btn { flex: 1 1 auto; }
+.stack > * + * { margin-top: 10px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* dock */
+.dock {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  padding: 18px 18px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to bottom, transparent, var(--bg) 38%);
+}
+.dock .inner { max-width: 560px; margin: 0 auto; }
+.dock .btn.primary { width: 100%; min-height: 54px; font-size: 18px; }
+
+/* lists */
+.list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.list > li { border-bottom: 1px solid var(--line); }
+.list .item { display: flex; align-items: center; gap: 10px; padding: 10px 0; min-height: 52px; }
+.list button.item { width: 100%; border: 0; background: none; text-align: left; cursor: pointer; padding: 12px 2px; }
+.list button.item:hover { background: var(--soft); }
+.grow { flex: 1 1 auto; min-width: 0; }
+.right { margin-left: auto; text-align: right; }
+.dead { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+
+/* roster */
+.tick {
+  width: 30px; height: 30px; flex: none; border-radius: 8px; border: 1.5px solid var(--line);
+  background: transparent; cursor: pointer; display: grid; place-items: center; font-size: 16px;
+}
+.tick[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.nick {
+  flex: 1 1 auto; min-width: 0; border: 0; background: transparent; color: var(--ink);
+  font: 500 17px/1.3 var(--body); padding: 8px 4px; border-radius: 6px;
+}
+.nick:focus { background: var(--soft); outline: none; }
+.mini { min-width: 40px; min-height: 40px; border-radius: 10px; border: 1px solid var(--line); background: transparent; cursor: pointer; }
+.add { display: flex; gap: 10px; margin-top: 12px; }
+.add input {
+  flex: 1 1 auto; min-width: 0; border: 1.5px solid var(--line); background: var(--surface); color: var(--ink);
+  border-radius: 12px; padding: 10px 14px; font: inherit;
+}
+
+/* chips */
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1.5px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 9px 16px; min-height: 44px; cursor: pointer; font-weight: 500;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* night lines */
+.act .who { font-weight: 600; }
+.act .target { color: var(--muted); }
+.act .flag { font-size: 14px; color: var(--accent); display: block; margin-top: 2px; }
+.preview b { color: var(--accent); font-weight: 600; }
+
+/* role cards */
+.counter { display: flex; align-items: center; gap: 6px; }
+.counter .val { min-width: 48px; text-align: center; font-weight: 600; }
+details.desc summary { cursor: pointer; list-style: none; }
+details.desc summary::-webkit-details-marker { display: none; }
+details.desc p { color: var(--muted); font-size: 15px; margin: 2px 0 12px 34px; }
+
+/* story */
+.story p { font-size: 19px; line-height: 1.6; max-width: 34em; }
+.story p:first-child { font-family: var(--display); font-size: 24px; line-height: 1.3; }
+.hostnotes { margin-top: 22px; padding: 14px 16px; border-left: 3px solid var(--accent); background: var(--soft); border-radius: 0 12px 12px 0; }
+.hostnotes ul { margin: 6px 0 0; padding-left: 18px; }
+
+/* secret card */
+.card {
+  margin-top: 8px; padding: 28px 22px; border-radius: 22px; background: var(--surface);
+  border: 1px solid var(--line); animation: rise .35s ease-out;
+}
+.card .emoji { font-size: 64px; line-height: 1; }
+.card h1 { font: 400 clamp(38px, 11vw, 52px)/1.05 var(--display); margin: 14px 0 12px; }
+.card .team { color: var(--muted); margin-bottom: 14px; }
+.card .extra { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+@keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+
+.pass { text-align: center; padding: 40px 0 10px; }
+.pass .big { font: 400 clamp(36px, 11vw, 52px)/1.1 var(--display); margin: 10px 0 18px; overflow-wrap: anywhere; }
+
+/* votes */
+.vote select {
+  font: inherit; color: var(--ink); background: var(--surface); border: 1.5px solid var(--line);
+  border-radius: 10px; padding: 8px 10px; max-width: 52%;
+}
+.bar { height: 6px; border-radius: 3px; background: var(--accent); margin-top: 6px; }
+.tally { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* dice */
+.die {
+  width: 120px; height: 120px; margin: 18px auto; border-radius: 22px; background: var(--surface);
+  border: 2px solid var(--line); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 16px;
+}
+.die span { width: 20px; height: 20px; border-radius: 50%; place-self: center; }
+.die span.on { background: var(--ink); }
+.facemap { list-style: none; padding: 0; margin: 0; }
+.facemap li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+
+.rps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; }
+.rps button { font-size: 46px; min-height: 100px; border-radius: 18px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; }
+
+.banner { padding: 12px 14px; border-radius: 12px; background: var(--soft); margin: 12px 0; }
+.win h1 { font: 400 clamp(42px, 12vw, 60px)/1.05 var(--display); margin: 14px 0 10px; }
+
+.tools { margin-top: 30px; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.toast {
+  position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; z-index: 10;
+  max-width: calc(100% - 36px); font-size: 15px; opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+.toast.show { opacity: 1; }
+.pts { font-variant-numeric: tabular-nums; color: var(--muted); }
+</style>
+</head>
+<body data-theme="day">
+<div id="app" class="wrap"></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<noscript><p style="padding:20px">This game needs JavaScript. / Для игры нужен JavaScript.</p></noscript>
+
+<script>
+"use strict";
+/* =====================================================================
+   Mafia — web version of @MafiaNextBot, one device run by the host.
+   Game rules, night resolution order, ties and points follow mafia_bot.py.
+   ===================================================================== */
+
+// ---------------- rules ----------------
+const POINTS = { win: 10, survive: 3, vote: 3, save: 3, check: 3, kill: 2, guard: 3, lawyer: 3, frame: 3, block: 3 };
+const ROLE_ORDER = ["mafia", "framer", "lawyer", "doctor", "detective", "bodyguard",
+  "partyhost", "driver", "mayor", "immortal", "lucky", "bestfriend", "turncoat"];
+const MAX_COUNT = { mafia: 10, doctor: 3, detective: 3, lawyer: 3 };
+const SLOTS = { bestfriend: 2 };
+const MAFIA_TEAM = new Set(["mafia", "lawyer", "framer"]);
+const NIGHT_ROLES = ["partyhost", "driver", "framer", "doctor", "bodyguard", "detective", "lawyer"];
+const NO_SELF = new Set(["partyhost", "bodyguard", "detective", "lawyer"]);
+const TRIM_ORDER = ["driver", "turncoat", "framer", "lucky", "immortal", "mayor", "partyhost", "bestfriend", "bodyguard", "lawyer"];
+const PRESETS = {
+  classic: { mafia: 0, doctor: 1, detective: 1 },
+  extended: { mafia: 0, doctor: 1, detective: 1, lawyer: 1, bodyguard: 1, mayor: 1, partyhost: 1 },
+  chaos: Object.assign(Object.fromEntries(ROLE_ORDER.map(r => [r, 1])), { mafia: 0 }),
+};
+const SETTINGS_SPEC = {
+  tie_default: ["nobody", "rps", "random", "revote"],
+  reveal: ["full", "team", "none"],
+  doctor_self: [true, false],
+  doctor_repeat: [false, true],
+  first_phase: ["night", "day"],
+};
+const RPS_BEATS = { r: "s", s: "p", p: "r" };
+const RPS_EMOJI = { r: "✊", p: "✋", s: "✌️" };
+const ROLE_EMOJI = { mafia: "🔪", framer: "🃏", lawyer: "⚖️", doctor: "💉", detective: "🔍", bodyguard: "🛡",
+  partyhost: "🎉", driver: "🚕", mayor: "🎩", immortal: "♾️", lucky: "🍀", bestfriend: "🤝", turncoat: "🐺", civilian: "🙂" };
+
+// ---------------- texts ----------------
+const ROLE_NAMES = {
+  ru: { mafia: ["Мафия", "Мафия"], framer: ["Подставщик", "Подставщица"], lawyer: ["Адвокат", "Адвокат"],
+    doctor: ["Доктор", "Доктор"], detective: ["Детектив", "Детектив"], bodyguard: ["Телохранитель", "Телохранительница"],
+    partyhost: ["Тусовщик", "Тусовщица"], driver: ["Таксист", "Таксистка"], mayor: ["Мэр", "Мэр"],
+    immortal: ["Бессмертный", "Бессмертная"], lucky: ["Везунчик", "Везунья"], bestfriend: ["Лучший друг", "Лучшая подруга"],
+    turncoat: ["Оборотень", "Оборотень"], civilian: ["Мирный житель", "Мирная жительница"] },
+  en: { mafia: ["Mafia", "Mafia"], framer: ["Framer", "Framer"], lawyer: ["Lawyer", "Lawyer"], doctor: ["Doctor", "Doctor"],
+    detective: ["Detective", "Detective"], bodyguard: ["Bodyguard", "Bodyguard"], partyhost: ["Party Host", "Party Host"],
+    driver: ["Driver", "Driver"], mayor: ["Mayor", "Mayor"], immortal: ["Immortal", "Immortal"], lucky: ["Lucky", "Lucky"],
+    bestfriend: ["Best Friend", "Best Friend"], turncoat: ["Turncoat", "Turncoat"], civilian: ["Civilian", "Civilian"] },
+};
+const TEAM_NAMES = { ru: { town: "🏘 Город", mafia: "🔪 Мафия" }, en: { town: "🏘 Town", mafia: "🔪 Mafia" } };
+const PRESET_NAMES = { ru: { classic: "Классика", extended: "Расширенная", chaos: "Хаос", custom: "Своя" },
+  en: { classic: "Classic", extended: "Extended", chaos: "Chaos", custom: "Custom" } };
+
+const ROLE_DESC = {
+  ru: {
+    mafia: "Ночью вы вместе с остальной мафией выбираете жертву. Днём притворяйтесь мирным.",
+    framer: "Вы играете за мафию. Каждую ночь выбирайте игрока: если детектив проверит его этой ночью, то увидит «мафия». Ваша цель — запутать детективов.",
+    lawyer: "Вы играете за мафию, но не знаете, кто она. Каждую ночь пытайтесь угадать мафиози. Угадали — отмазывайте его днём. Не угадали — топите того, кого проверили, ведь он мирный. При подсчёте победы вы в команде мафии.",
+    doctor: "Каждую ночь вы лечите одного игрока. Если мафия придёт к нему, он выживет.",
+    detective: "Каждую ночь вы проверяете одного игрока и узнаёте, мафия ли он.",
+    bodyguard: "Каждую ночь вы охраняете одного игрока. Если мафия нападёт на него, вы погибнете вместо него.",
+    partyhost: "Каждую ночь вы уводите одного игрока на вечеринку — его ночное действие не срабатывает. Уведёте мафиози — убийства не будет.",
+    driver: "Каждую ночь вы меняете местами двух игроков: всё, что направлено на одного, достанется другому. Можно спасти, а можно запутать — выбирайте с умом.",
+    mayor: "Днём ваш голос обычный, а личность — тайна. Один раз за игру после голосования вы можете отменить изгнание. Скажите ведущему, когда он объявит.",
+    immortal: "Мафия не может убить вас ночью. Изгнать вас днём — может.",
+    lucky: "Первое ночное нападение на вас не сработает. После этого вы обычный мирный. Изгнать вас днём можно в любой момент.",
+    bestfriend: "Вы и ваш лучший друг — мирные, и вы оба это знаете. Держитесь вместе!",
+    turncoat: "Пока вы мирный. Но когда погибнет первый мафиози, вы перейдёте в мафию и узнаете своих новых союзников.",
+    civilian: "Ночью вы спите. Днём ищите мафию и голосуйте с умом.",
+  },
+  en: {
+    mafia: "Each night you and the rest of the Mafia choose a victim. By day, act innocent.",
+    framer: "You play for the Mafia. Each night choose a player: if a Detective checks them tonight, they will show up as Mafia. Your goal is to mislead the Detectives.",
+    lawyer: "You play for the Mafia, but you don't know who they are. Each night try to guess a Mafia member. Guessed right — defend them by day. Guessed wrong — push to eliminate that player, they are town. You count as Mafia for victory.",
+    doctor: "Each night you heal one player. If the Mafia attacks them, they survive.",
+    detective: "Each night you check one player and learn whether they are Mafia.",
+    bodyguard: "Each night you guard one player. If the Mafia attacks them, you die in their place.",
+    partyhost: "Each night you take one player to your party — their night action fails. Take a Mafia member and there will be no kill.",
+    driver: "Each night choose two players and switch their places: any action targeting one affects the other. It can save players or create confusion — choose carefully.",
+    mayor: "By day your vote counts as a regular vote and your identity is secret. Once per game, after the vote, you may cancel the elimination. Tell the host when they announce it.",
+    immortal: "The Mafia cannot kill you at night. You can still be voted out by day.",
+    lucky: "The first night attack on you fails. After that you are a regular player. You can still be voted out by day.",
+    bestfriend: "You and your best friend are both town, and you both know it. Stick together!",
+    turncoat: "For now you are town. But when the first Mafia member dies, you will join the Mafia and learn who your new allies are.",
+    civilian: "At night you sleep. By day, find the Mafia and vote wisely.",
+  },
+};
+
+const STORIES = {
+  ru: {
+    night_header: ["Утро после ночи {r}. Город просыпается…"],
+    day_header: ["Вечер {r}-го дня. Итоги голосования"],
+    kill: [
+      "Ночь выдалась туманной. Город спал, но не все. На рассвете жители нашли игрока {v} у старого фонтана — мафия не знает жалости.",
+      "Когда часы пробили три, в одном из домов погас свет. Утром соседи поняли: {v} больше не [проснётся|проснётся].",
+      "Город уснул под шум дождя. Мафия выбрала цель, и доктор не успел. {v} [покидает|покидает] игру навсегда.",
+      "Луна скрылась за тучами, и в тишине раздался выстрел. Наутро стало ясно: {v} [был убит|была убита] мафией.",
+      "Ночью по улицам проехала чёрная машина без номеров. А утром город недосчитался одного жителя: {v} [исчез|исчезла] без следа.",
+    ],
+    bodyguard: [
+      "Ночью мафия вышла на охоту, но на пути убийц встал телохранитель. {v} [закрыл|закрыла] собой другого и [погиб|погибла] как [герой|героиня].",
+      "Выстрел прозвучал в темноте, но пуля нашла не того, кому предназначалась: {v} [бросился|бросилась] наперерез и [спас|спасла] чужую жизнь ценой своей.",
+    ],
+    saved: [
+      "Ночью мафия вышла на охоту, но доктор оказался быстрее. Все проснулись живыми — хотя кто-то явно провёл ночь под капельницей. 💉",
+      "Тени подкрались к дому жертвы, но на пороге уже стоял доктор со своим чемоданчиком. Мафия ушла ни с чем.",
+      "Эта ночь могла стать для кого-то последней. Но доктор сотворил чудо: все живы!",
+    ],
+    survived: [
+      "Ночью мафия напала, но жертва… просто не умерла. Город шепчется: то ли чудо, то ли кто-то здесь не так прост.",
+      "Убийцы сделали своё дело, но утром их цель вышла на улицу живой и невредимой. Мафия в замешательстве.",
+    ],
+    quiet: [
+      "Ночь прошла на удивление спокойно. Мафия затаилась… или что-то замышляет. 🤔",
+      "Город спал крепко, и даже мафия, кажется, взяла выходной. Все живы — пока.",
+      "Где-то до утра гремела музыка, а мафия так и не вышла на дело. Странная выдалась ночь.",
+    ],
+    exile: [
+      "Споры не утихали до самого вечера. Наконец город вынес решение: {v} [изгнан|изгнана].",
+      "Голосование было напряжённым, но большинство указало на игрока {v}. Решение принято.",
+      "Город решил не рисковать: {v} [покидает|покидает] игру.",
+      "Обвинения, оправдания, крики… В итоге жители проголосовали против игрока {v}.",
+    ],
+    no_exile: [
+      "Подозрений было много, а доказательств мало. Жители разошлись по домам, никого не изгнав.",
+      "Город так и не смог договориться. Сегодня никто не покидает игру… но ночь уже близко. 🌙",
+    ],
+    mayor: [
+      "Город уже решил изгнать игрока {v}, но в последний момент пришёл указ из мэрии: изгнание отменено! Кто же мэр? 🎩",
+      "{v} уже [стоял|стояла] у городских ворот, когда прибежал гонец с печатью мэра. Приговор отменён — {v} [остаётся|остаётся] в городе.",
+    ],
+    tie_revote: ["Голоса разделились поровну, и город решил переголосовать."],
+    tie_rps: ["Голоса разделились поровну, и судьбу решила дуэль «камень, ножницы, бумага»:\n{x}\nПроиграл[|а] {v}."],
+    tie_dice: ["Голоса разделились поровну, и судьбу решил кубик:\n{x}\nЖребий пал на игрока {v}."],
+    tie_random: ["Голоса разделились поровну, и жребий пал на игрока {v}."],
+    win_town: ["<b>Мирные жители победили!</b> Вся мафия поймана, город может спать спокойно. 🎉"],
+    win_mafia: ["<b>Мафия победила!</b> Мирных жителей осталось слишком мало — город теперь в руках мафии. 🔪"],
+  },
+  en: {
+    night_header: ["Morning after night {r}. The town wakes up…"],
+    day_header: ["Evening of day {r}. The vote results"],
+    kill: [
+      "The night was foggy. The town slept, but not everyone. At dawn people found {v} by the old fountain — the Mafia shows no mercy.",
+      "When the clock struck three, a light went out in one of the houses. In the morning the neighbors realized {v} would never wake up again.",
+      "The town fell asleep to the sound of rain. The Mafia chose a target and the doctor was too late. {v} is gone for good.",
+      "The moon hid behind the clouds and a shot rang out in the silence. By morning it was clear: {v} had been killed by the Mafia.",
+      "At night a black car without plates drove through the streets. In the morning the town was one person short: {v} had vanished without a trace.",
+    ],
+    bodyguard: [
+      "The Mafia went hunting, but a bodyguard stood in their way. {v} shielded someone else and died a hero.",
+      "A shot rang out in the dark, but the bullet found the wrong person: {v} jumped in front of it and saved a life at the cost of [his|her] own.",
+    ],
+    saved: [
+      "The Mafia went hunting, but the doctor was faster. Everyone woke up alive — though someone clearly spent the night on an IV drip. 💉",
+      "Shadows crept up to the victim's house, but the doctor was already at the door with a medical bag. The Mafia left empty-handed.",
+      "This night could have been someone's last. But the doctor worked a miracle: everyone is alive!",
+    ],
+    survived: [
+      "The Mafia attacked, but the victim… simply didn't die. The town whispers: a miracle, or is someone here not what they seem?",
+      "The killers did their job, yet in the morning their target walked out alive and well. The Mafia is baffled.",
+    ],
+    quiet: [
+      "The night was surprisingly calm. The Mafia is lying low… or plotting something. 🤔",
+      "The town slept soundly, and even the Mafia seems to have taken a night off. Everyone is alive — for now.",
+      "Music played somewhere until dawn, and the Mafia never went out to work. A strange night indeed.",
+    ],
+    exile: [
+      "The arguments went on until evening. Finally the town decided: {v} is exiled.",
+      "The vote was tense, but the majority pointed at {v}. The decision is made.",
+      "The town chose not to take chances: {v} leaves the game.",
+      "Accusations, excuses, shouting… In the end the town voted against {v}.",
+    ],
+    no_exile: [
+      "Plenty of suspicion, little proof. Everyone went home without exiling anyone.",
+      "The town couldn't agree. Nobody leaves today… but night is coming. 🌙",
+    ],
+    mayor: [
+      "The town had already decided to exile {v}, but at the last moment a decree arrived from City Hall: the exile is cancelled! Who is the Mayor? 🎩",
+      "{v} was already at the town gates when a messenger ran up with the Mayor's seal. The sentence is lifted — {v} stays.",
+    ],
+    tie_revote: ["The votes were split evenly, so the town voted again."],
+    tie_rps: ["The votes were split evenly, and a game of rock, paper, scissors decided:\n{x}\n{v} lost."],
+    tie_dice: ["The votes were split evenly, and the dice decided:\n{x}\nThe lot fell on {v}."],
+    tie_random: ["The votes were split evenly, and the lot fell on {v}."],
+    win_town: ["<b>The town wins!</b> All the Mafia have been caught — the town can sleep peacefully. 🎉"],
+    win_mafia: ["<b>The Mafia wins!</b> Too few townspeople are left — the town is now in the Mafia's hands. 🔪"],
+  },
+};
+
+const T = {
+  ru: {
+    title: "Мафия", lang_btn: "English",
+    tagline: "Ведущий проводит игру с одного телефона: раздаёт роли, отмечает ночные ходы и голоса, читает историю вслух.",
+    players: "Игроки", in_game_n: "в игре: {n}", add: "Добавить", nick_ph: "Ник нового игрока",
+    nick_taken: "Такой ник уже есть.", nick_bad: "Ник — от 2 до 20 символов.",
+    no_players: "Добавьте игроков — минимум трое. Отметьте галочкой тех, кто играет сейчас.",
+    gender_m: "мужской", gender_f: "женский", gender_none: "пол не указан",
+    gender_hint: "♂/♀ — чтобы роли и истории были с правильными окончаниями.",
+    delete: "Удалить", need_3: "Нужно минимум 3 игрока.", deal: "Раздать роли",
+    roles_btn: "Роли", settings_btn: "Настройки", board_btn: "Таблица очков", back: "Назад",
+    preset: "Набор ролей", will_drop: "Не хватит игроков для: {roles}",
+    roles_title: "Набор ролей",
+    roles_hint: "Мирных жителей добавим сами, если ролей меньше, чем игроков. Если игроков не хватает, лишние роли уберутся автоматически.",
+    mafia_auto: "авто: 1 на 4 игроков", auto: "авто", card_pair: "Пара: занимает два места.",
+    settings_title: "Настройки", settings_hint: "Нажмите на значение, чтобы переключить. Во время партии действуют настройки, с которыми она началась.",
+    set_tie_default: "Ничья по умолчанию", val_tie_default_nobody: "никто", val_tie_default_rps: "камень-ножницы-бумага",
+    val_tie_default_random: "кубик", val_tie_default_revote: "переголосование",
+    set_reveal: "Раскрывать выбывших", val_reveal_full: "роль", val_reveal_team: "команду", val_reveal_none: "нет",
+    set_doctor_self: "Доктор лечит себя", set_doctor_repeat: "Доктор лечит одного 2 ночи подряд",
+    set_first_phase: "Начало игры", val_first_phase_night: "ночь", val_first_phase_day: "день знакомства",
+    yes: "да", no: "нет",
+    reveal_title: "Раздача ролей",
+    reveal_hint: "Передавайте телефон по кругу. Каждый находит своё имя, смотрит роль и прячет её.",
+    dropped: "Не хватило игроков, убраны: {roles}",
+    left_to_see: "Ещё не посмотрели: {n}", start_game: "Все посмотрели — начать",
+    pass_to: "Передайте телефон", show_role: "Это я — показать роль", hide_pass: "Спрятать",
+    your_role: "Ваша роль", your_team: "Ваша команда", your_friend: "Ваш лучший друг: {v} — [он|она] тоже мирный.",
+    keep_secret: "Никому не показывайте экран!", you_are_out: "Вы выбыли из игры.",
+    lucky_spent: "🍀 Ваша удача уже использована.", lawyer_done: "✅ Вы уже нашли мафию — теперь защищайте её днём.",
+    turned_now: "🐺 Первый мафиози погиб. Теперь вы — мафия!",
+    night: "Ночь", day: "День", intro_day: "День знакомства", intro_hint: "Игроки представляются. Голосования сегодня нет.",
+    mafia_team_kill: "Мафия", night_hint: "⇒ — предварительный результат с учётом всех выборов.",
+    blocked: "на вечеринке", res_mafia: "МАФИЯ", res_town: "не мафия", res_right: "угадал(а)", res_wrong: "мимо",
+    pick_mafia: "Кого выбрала мафия?", pick_doctor: "кого лечит?", pick_detective: "кого проверяет?",
+    pick_lawyer: "кого считает мафией?", pick_bodyguard: "кого охраняет?", pick_partyhost: "кого зовёт на вечеринку?",
+    pick_framer: "кого подставляет?", pick_driver: "кого меняет местами? Выберите двоих.",
+    skip: "Никого / пропуск", btn_view: "Состав", btn_remind: "Напомнить роль", btn_end_game: "Завершить игру",
+    btn_end_night: "Закончить ночь", btn_start_night: "Начать ночь", alive: "В живых",
+    open_vote: "Открыть голосование", vote_title: "Голосование",
+    vote_hint: "Выберите, против кого голосует каждый. Ведущий видит счёт.",
+    no_vote_opt: "не голосует", close_vote: "Закрыть голосование", voted_n: "Проголосовали: {a} из {b}",
+    vote_result: "Итог голосования", no_votes: "Голосов нет.", leader: "Больше всего голосов: <b>{v}</b>",
+    tie: "Ничья: {v}", tie_choose: "Как решаем?", tie_nobody: "Никто не выбывает", tie_rps: "Камень, ножницы, бумага",
+    tie_random: "Кубик", tie_revote: "Переголосование",
+    btn_exile: "Изгнать: {v}", btn_mayor: "Мэр отменил изгнание", btn_no_exile: "Никого не изгонять",
+    decided: "Выбывает: {v}",
+    rps_title: "Камень, ножницы, бумага", rps_round: "раунд {n}",
+    rps_hint: "Каждый дуэлянт тайно делает выбор на этом телефоне. Когда выберут все, бой разыграется сам.",
+    rps_rivals: "Соперники: {v}. Проигравший покинет город.", rps_your_move: "Ваш ход",
+    btn_rps_random: "Случайно за тех, кто не выбрал", btn_rps_cancel: "Отменить дуэль",
+    dice_title: "Бросаем кубик", dice_roll: "Бросить кубик", dice_again: "Выпало {n} — такой грани нет, бросайте ещё.",
+    story_title: "История для чтения вслух", for_host: "Только для ведущего", next: "Дальше",
+    turncoat_pass: "Оборотень {v} теперь в мафии. Покажите ему новую карточку — он узнает союзников.",
+    show_card: "Показать карточку: {v}",
+    reveal_role: "Роль: {role}.", reveal_team: "Команда: {team}.",
+    note_kill_blocked: "тусовщик увёл мафиози — убийства нет", note_immortal: "мафия напала на бессмертного: {v}",
+    note_saved: "доктор спас: {v}", note_guarded: "телохранитель {b} погиб, защищая {v}",
+    note_lucky: "{v} выжил(а) благодаря удаче", note_redirected: "таксист перенаправил удар с {v} на {b}",
+    note_check_mafia: "детектив {d} проверил(а) {v}: мафия", note_check_town: "детектив {d} проверил(а) {v}: не мафия",
+    note_lawyer_ok: "адвокат {d} угадал(а) мафию: {v}", note_lawyer_no: "адвокат {d} не угадал(а): {v}",
+    note_turned: "оборотень {v} перешёл в мафию", note_mayor: "мэр отменил изгнание игрока {v}",
+    note_tell: "Покажите результаты проверок жестом или карточкой — как договорились.",
+    game_over: "Игра окончена", rematch: "Новая партия с теми же игроками", to_lobby: "В лобби",
+    end_confirm: "Завершить игру? Она не будет засчитана.", end_yes: "Да, завершить", end_no: "Нет, вернуться",
+    board_title: "Таблица очков", points: "очков", games_n: "игр: {n}", wins_n: "побед: {n}", last_n: "в последней: {n}",
+    no_games: "Ещё ни одной сыгранной игры.", clear_stats: "Обнулить статистику", clear_confirm: "Обнулить очки и историю всех игроков?",
+    history: "История игр", won: "победа", lost: "поражение", survived: "выжил(а)",
+    remind_title: "Напомнить роль", remind_hint: "Выберите игрока и передайте ему телефон.",
+    saved_local: "Всё хранится в этом браузере. Если закрыть страницу, игра продолжится с того же места.",
+    points_rules: "Очки: победа +10, дожил +3, голос против мафии +3, спас/нашёл/угадал/подставил/увёл мафиози/закрыл собой +3, убийство +2 каждому убийце.",
+  },
+  en: {
+    title: "Mafia", lang_btn: "Русский",
+    tagline: "The host runs the whole game from one phone: deals roles, records night moves and votes, reads the story aloud.",
+    players: "Players", in_game_n: "playing: {n}", add: "Add", nick_ph: "New player's nickname",
+    nick_taken: "That nickname is already taken.", nick_bad: "Nicknames are 2–20 characters.",
+    no_players: "Add players — at least three. Tick the ones playing this round.",
+    gender_m: "male", gender_f: "female", gender_none: "gender not set",
+    gender_hint: "♂/♀ only matters for the Russian texts.",
+    delete: "Delete", need_3: "At least 3 players are needed.", deal: "Deal roles",
+    roles_btn: "Roles", settings_btn: "Settings", board_btn: "Leaderboard", back: "Back",
+    preset: "Role set", will_drop: "Not enough players for: {roles}",
+    roles_title: "Role set",
+    roles_hint: "Civilians are added only if there are fewer roles than players. If there aren't enough players, extra roles are removed automatically.",
+    mafia_auto: "auto: 1 per 4 players", auto: "auto", card_pair: "A pair: takes two places.",
+    settings_title: "Settings", settings_hint: "Tap a value to switch it. A running game keeps the settings it started with.",
+    set_tie_default: "Default on a tie", val_tie_default_nobody: "nobody", val_tie_default_rps: "rock-paper-scissors",
+    val_tie_default_random: "dice", val_tie_default_revote: "revote",
+    set_reveal: "Reveal eliminated", val_reveal_full: "role", val_reveal_team: "team", val_reveal_none: "no",
+    set_doctor_self: "Doctor can heal self", set_doctor_repeat: "Doctor can heal the same player twice in a row",
+    set_first_phase: "Game starts with", val_first_phase_night: "night", val_first_phase_day: "intro day",
+    yes: "yes", no: "no",
+    reveal_title: "Dealing roles",
+    reveal_hint: "Pass the phone around. Each player finds their name, looks at their role and hides it.",
+    dropped: "Not enough players, removed: {roles}",
+    left_to_see: "Still to look: {n}", start_game: "Everyone has seen — start",
+    pass_to: "Pass the phone to", show_role: "It's me — show my role", hide_pass: "Hide",
+    your_role: "Your role", your_team: "Your team", your_friend: "Your best friend: {v} — [he|she] is town too.",
+    keep_secret: "Don't show this screen to anyone!", you_are_out: "You are out of the game.",
+    lucky_spent: "🍀 Your luck has already been used.", lawyer_done: "✅ You've already found the Mafia — now defend them by day.",
+    turned_now: "🐺 The first Mafia member has died. Now you are Mafia!",
+    night: "Night", day: "Day", intro_day: "Intro day", intro_hint: "Players introduce themselves. No vote today.",
+    mafia_team_kill: "Mafia", night_hint: "⇒ — preliminary result considering all choices.",
+    blocked: "at the party", res_mafia: "MAFIA", res_town: "not Mafia", res_right: "right", res_wrong: "wrong",
+    pick_mafia: "Who did the Mafia choose?", pick_doctor: "who to heal?", pick_detective: "who to check?",
+    pick_lawyer: "who do they think is Mafia?", pick_bodyguard: "who to guard?", pick_partyhost: "who to invite to the party?",
+    pick_framer: "who to frame?", pick_driver: "who to switch? Pick two.",
+    skip: "Nobody / skip", btn_view: "Line-up", btn_remind: "Remind a role", btn_end_game: "End game",
+    btn_end_night: "End night", btn_start_night: "Start night", alive: "Alive",
+    open_vote: "Open the vote", vote_title: "Vote",
+    vote_hint: "Choose who each player votes against. Only the host sees the count.",
+    no_vote_opt: "no vote", close_vote: "Close the vote", voted_n: "Voted: {a} of {b}",
+    vote_result: "Vote result", no_votes: "No votes.", leader: "Most votes: <b>{v}</b>",
+    tie: "Tie: {v}", tie_choose: "How do we break it?", tie_nobody: "Nobody leaves", tie_rps: "Rock, paper, scissors",
+    tie_random: "Dice", tie_revote: "Revote",
+    btn_exile: "Exile: {v}", btn_mayor: "Mayor cancelled the exile", btn_no_exile: "Exile nobody",
+    decided: "Leaving: {v}",
+    rps_title: "Rock, paper, scissors", rps_round: "round {n}",
+    rps_hint: "Each duelist picks in secret on this phone. Once everyone has picked, the round plays out.",
+    rps_rivals: "Your rivals: {v}. The loser leaves town.", rps_your_move: "Your move",
+    btn_rps_random: "Random pick for anyone who hasn't chosen", btn_rps_cancel: "Cancel the duel",
+    dice_title: "Rolling the dice", dice_roll: "Roll the dice", dice_again: "Rolled {n} — no player on that face, roll again.",
+    story_title: "Story to read aloud", for_host: "For the host only", next: "Next",
+    turncoat_pass: "Turncoat {v} has joined the Mafia. Show them their new card so they learn their allies.",
+    show_card: "Show card: {v}",
+    reveal_role: "Role: {role}.", reveal_team: "Team: {team}.",
+    note_kill_blocked: "the party host took a Mafia member — no kill", note_immortal: "the Mafia attacked the Immortal: {v}",
+    note_saved: "the doctor saved: {v}", note_guarded: "bodyguard {b} died protecting {v}",
+    note_lucky: "{v} survived thanks to luck", note_redirected: "the driver redirected the attack from {v} to {b}",
+    note_check_mafia: "detective {d} checked {v}: Mafia", note_check_town: "detective {d} checked {v}: not Mafia",
+    note_lawyer_ok: "lawyer {d} found the Mafia: {v}", note_lawyer_no: "lawyer {d} guessed wrong: {v}",
+    note_turned: "turncoat {v} joined the Mafia", note_mayor: "the Mayor cancelled the exile of {v}",
+    note_tell: "Pass check results on with a gesture or a card, as agreed.",
+    game_over: "Game over", rematch: "New game, same players", to_lobby: "To the lobby",
+    end_confirm: "End the game? It won't count.", end_yes: "Yes, end it", end_no: "No, go back",
+    board_title: "Leaderboard", points: "pts", games_n: "games: {n}", wins_n: "wins: {n}", last_n: "last game: {n}",
+    no_games: "No games played yet.", clear_stats: "Reset stats", clear_confirm: "Reset all points and history?",
+    history: "Game history", won: "won", lost: "lost", survived: "survived",
+    remind_title: "Remind a role", remind_hint: "Pick a player and pass them the phone.",
+    saved_local: "Everything is stored in this browser. Close the page and the game picks up where it left off.",
+    points_rules: "Points: win +10, survived +3, voted against the Mafia +3, save/find/guess/frame/block a Mafia member/bodyguard sacrifice +3, each killer per kill +2.",
+  },
+};
+
+// ---------------- state ----------------
+const KEY = "mafia-web-v1";
+function prefDefaults() {
+  const p = { preset: "classic", counts: { ...PRESETS.classic }, custom: { ...PRESETS.classic } };
+  for (const [k, v] of Object.entries(SETTINGS_SPEC)) p[k] = v[0];
+  return p;
+}
+function defaultState() {
+  const ru = (navigator.language || "").toLowerCase().startsWith("ru");
+  return { lang: ru ? "ru" : "en", roster: [], lobby: [], prefs: prefDefaults(), stats: {}, game: null,
+    view: "home", arg: null, ret: null, nextId: 1 };
+}
+let S;
+try { S = JSON.parse(localStorage.getItem(KEY)) || defaultState(); } catch (e) { S = defaultState(); }
+S.prefs = Object.assign(prefDefaults(), S.prefs || {});
+if (S.view === "card" || S.view === "rps_pick") S.view = "game";   // never reopen a secret screen after reload
+if (!S.game && !["home", "roles", "settings", "board", "history"].includes(S.view)) S.view = "home";
+
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* storage full or blocked */ } }
+const G = () => S.game;
+
+// ---------------- helpers ----------------
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function t(key, kw) {
+  let s = T[S.lang][key] ?? T.ru[key] ?? key;
+  if (kw) s = s.replace(/\{(\w+)\}/g, (m, k) => (k in kw ? kw[k] : m));
+  return s;
+}
+const GENDER_RE = /\[([^\[\]|]*)\|([^\[\]]*)\]/g;
+const gfmt = (text, gender) => text.replace(GENDER_RE, (m, a, b) => (gender === "f" ? b : a));
+function roleName(role, gender, emoji = true) {
+  const [m, f] = ROLE_NAMES[S.lang][role];
+  const name = gender === "f" ? f : m;
+  return emoji ? `${ROLE_EMOJI[role]} ${name}` : name;
+}
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const rand = n => Math.floor(Math.random() * n);
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
+}
+const rosterById = id => S.roster.find(p => p.id === id);
+function stats(id) { return S.stats[id] || (S.stats[id] = { points: 0, last: 0, games: [] }); }
+
+// ---------------- game state helpers (ports of mafia_bot.py) ----------------
+const P = id => G().players[id];
+const nm = id => (id && G().players[id] ? esc(G().players[id].nick) : "?");
+const cfg = () => (G() && G().cfg) || S.prefs;
+const inGame = () => G() && ["night", "day"].includes(G().phase);
+const alive = () => G().order.filter(u => P(u).alive);
+const isAlive = u => !!(u && G().players[u] && P(u).alive);
+const roleOf = u => P(u).role;
+function teamOf(u) { const r = roleOf(u); return MAFIA_TEAM.has(r) || (r === "turncoat" && G().turned) ? "mafia" : "town"; }
+function inCircle(u) { const r = roleOf(u); return r === "mafia" || r === "framer" || (r === "turncoat" && G().turned); }
+const killers = () => alive().filter(u => roleOf(u) === "mafia" || (roleOf(u) === "turncoat" && G().turned));
+const nightActors = () => NIGHT_ROLES.flatMap(r => alive().filter(u => roleOf(u) === r && !(r === "lawyer" && G().lawyer_found.includes(u))));
+function checkWinner() {
+  const a = alive(); const m = a.filter(u => teamOf(u) === "mafia").length;
+  if (m === 0) return "town";
+  if (m >= a.length - m) return "mafia";
+  return null;
+}
+const addPoints = (u, key) => { G().points[u] = (G().points[u] || 0) + POINTS[key]; };
+
+function mafiaCount(n) { const m = cfg().counts.mafia || 0; return m > 0 ? m : Math.max(1, Math.floor(n / 4)); }
+
+function planRoles(n) {
+  const counts = cfg().counts; const c = {};
+  ROLE_ORDER.forEach(r => (c[r] = counts[r] || 0));
+  c.mafia = mafiaCount(n);
+  const dropped = [];
+  const slots = r => SLOTS[r] || 1;
+  const total = () => ROLE_ORDER.reduce((s, r) => s + c[r] * slots(r), 0);
+  const mteam = () => ROLE_ORDER.reduce((s, r) => s + (MAFIA_TEAM.has(r) ? c[r] : 0), 0);
+  const unDrop = r => dropped.splice(dropped.indexOf(r), 1);
+  for (const r of [...TRIM_ORDER, "doctor", "detective"]) {
+    const floor = r === "doctor" || r === "detective" ? 1 : 0;
+    while (total() > n && c[r] > floor) { c[r]--; dropped.push(r); }
+  }
+  while (total() > n && c.mafia > 1) { c.mafia--; dropped.push("mafia"); }
+  for (const r of [...dropped].reverse()) if (total() + slots(r) <= n) { c[r]++; unDrop(r); }
+  while (mteam() >= n - mteam()) {
+    let done = false;
+    for (const r of ["lawyer", "framer", "mafia"]) {
+      if (c[r] > (r === "mafia" ? 1 : 0)) { c[r]--; dropped.push(r); done = true; break; }
+    }
+    if (!done) break;
+  }
+  for (const r of [...dropped].reverse()) if (!MAFIA_TEAM.has(r) && total() + slots(r) <= n) { c[r]++; unDrop(r); }
+  const roles = [];
+  ROLE_ORDER.forEach(r => { for (let i = 0; i < c[r] * slots(r); i++) roles.push(r); });
+  while (roles.length < n) roles.push("civilian");
+  return [roles.slice(0, n), dropped];
+}
+function rolesLine(roles) {
+  const cnt = {}; roles.forEach(r => (cnt[r] = (cnt[r] || 0) + 1));
+  return [...ROLE_ORDER, "civilian"].filter(r => cnt[r]).map(r => `${ROLE_EMOJI[r]}×${cnt[r]}`).join("  ");
+}
+function uniqDropped(list) {
+  const cnt = {}; list.forEach(r => (cnt[r] = (cnt[r] || 0) + 1));
+  return Object.entries(cnt).map(([r, n]) => roleName(r, null, false) + (n > 1 ? ` ×${n}` : "")).join(", ");
+}
+
+// ---------------- night resolution (same order as the bot) ----------------
+function resolve() {
+  const g = G(), n = g.night;
+  const blocked = new Set(alive().filter(u => roleOf(u) === "partyhost" && n[u]).map(u => n[u]));
+  const redirect = {};
+  for (const u of alive()) {
+    if (roleOf(u) === "driver" && !blocked.has(u)) {
+      const pair = n[u] || [];
+      if (pair.length === 2 && pair[0] !== pair[1]) { redirect[pair[0]] = pair[1]; redirect[pair[1]] = pair[0]; }
+    }
+  }
+  const target = u => (blocked.has(u) || !n[u] || roleOf(u) === "driver" ? null : (redirect[n[u]] || n[u]));
+  const out = { blocked, deaths: [], events: [], notes: [], checks: {}, lawyer: {}, points: [], lucky_used: [] };
+
+  for (const u of alive()) if (roleOf(u) === "partyhost" && n[u] && teamOf(n[u]) === "mafia") out.points.push([u, "block"]);
+
+  const framed = new Set(alive().filter(u => roleOf(u) === "framer" && target(u)).map(target));
+  const healed = {}, guards = {};
+  for (const u of alive()) {
+    const tg = target(u);
+    if (tg && roleOf(u) === "doctor") (healed[tg] = healed[tg] || []).push(u);
+    if (tg && roleOf(u) === "bodyguard") guards[tg] = u;
+  }
+
+  const kill = n.mafia, team = killers();
+  if (kill && team.length) {
+    if (team.some(k => blocked.has(k))) {
+      out.events.push({ k: "quiet" }); out.notes.push(["note_kill_blocked", {}]);
+    } else {
+      const victim = redirect[kill] || kill;
+      if (!isAlive(victim)) out.events.push({ k: "quiet" });
+      else if (roleOf(victim) === "immortal") { out.events.push({ k: "survived" }); out.notes.push(["note_immortal", { v: victim }]); }
+      else if (healed[victim]) {
+        out.events.push({ k: "saved" }); out.notes.push(["note_saved", { v: victim }]);
+        healed[victim].forEach(d => out.points.push([d, "save"]));
+      } else if (guards[victim]) {
+        const bg = guards[victim];
+        out.deaths.push(bg); out.events.push({ k: "bodyguard", v: bg, reveal: true });
+        out.notes.push(["note_guarded", { v: victim, b: bg }]); out.points.push([bg, "guard"]);
+      } else if (roleOf(victim) === "lucky" && !g.lucky_used.includes(victim)) {
+        out.lucky_used.push(victim); out.events.push({ k: "survived" }); out.notes.push(["note_lucky", { v: victim }]);
+      } else {
+        out.deaths.push(victim); out.events.push({ k: "kill", v: victim, reveal: true });
+        team.forEach(k => out.points.push([k, "kill"]));
+      }
+      if (victim !== kill) out.notes.push(["note_redirected", { v: kill, b: victim }]);
+    }
+  } else out.events.push({ k: "quiet" });
+
+  for (const u of alive()) {
+    if (roleOf(u) === "detective" && target(u)) {
+      const tg = target(u);
+      const really = teamOf(tg) === "mafia" && roleOf(tg) !== "lawyer";
+      out.checks[u] = [tg, really || framed.has(tg)];
+      if (really) out.points.push([u, "check"]);
+      else if (framed.has(tg)) alive().filter(f => roleOf(f) === "framer" && target(f) === tg).forEach(f => out.points.push([f, "frame"]));
+    }
+  }
+  for (const u of alive()) {
+    if (roleOf(u) === "lawyer" && !g.lawyer_found.includes(u) && target(u)) {
+      const tg = target(u), ok = inCircle(tg);
+      out.lawyer[u] = [tg, ok];
+      if (ok) out.points.push([u, "lawyer"]);
+    }
+  }
+  return out;
+}
+
+// ---------------- game flow ----------------
+function newGame(ids) {
+  return {
+    phase: "reveal", players: {}, order: [], round: 0, night: {}, last_heal: {}, votes: {}, vote_stage: null,
+    tie_log: [], rps: null, dice: null, decided: null, events: [], notes: [], storyKind: null, turnPending: [],
+    points: {}, turned: false, mayor_used: false, lawyer_found: [], lucky_used: [], seen: [],
+    started_at: new Date().toISOString(), winner: null, cfg: JSON.parse(JSON.stringify(S.prefs)), dropped: [], ids,
+  };
+}
+function deal(ids) {
+  ids = ids.filter(id => rosterById(id));
+  if (ids.length < 3) { toast(t("need_3")); return; }
+  S.game = newGame(ids);
+  const g = G();
+  ids.forEach(id => { const r = rosterById(id); g.players[id] = { nick: r.nick, gender: r.gender, role: null, alive: true }; g.order.push(id); });
+  const [roles, dropped] = planRoles(ids.length);
+  shuffle(roles);
+  g.order.forEach((u, i) => (g.players[u].role = roles[i]));
+  g.dropped = dropped;
+  go("game");
+}
+function startPlay() {
+  const g = G();
+  if (g.cfg.first_phase === "night") Object.assign(g, { phase: "night", round: 1 });
+  else Object.assign(g, { phase: "day", round: 0 });
+  go("game");
+}
+function turncoatCheck(notes) {
+  const g = G();
+  if (g.turned) return;
+  if (!g.order.some(u => roleOf(u) === "mafia" && !P(u).alive)) return;
+  const tcs = alive().filter(u => roleOf(u) === "turncoat");
+  if (!tcs.length) return;
+  g.turned = true;
+  tcs.forEach(tc => { notes.push(["note_turned", { v: tc }]); g.turnPending.push(tc); });
+}
+function applyNight() {
+  const g = G(), out = resolve();
+  out.deaths.forEach(d => (P(d).alive = false));
+  g.lucky_used.push(...out.lucky_used);
+  for (const u of alive()) if (roleOf(u) === "doctor") { if (g.night[u]) g.last_heal[u] = g.night[u]; else delete g.last_heal[u]; }
+  for (const [u, [, ok]] of Object.entries(out.lawyer)) if (ok) g.lawyer_found.push(u);
+  out.points.forEach(([u, k]) => addPoints(u, k));
+  const notes = out.notes;
+  for (const [u, [tg, m]] of Object.entries(out.checks)) notes.push([m ? "note_check_mafia" : "note_check_town", { d: u, v: tg }]);
+  for (const [u, [tg, ok]] of Object.entries(out.lawyer)) notes.push([ok ? "note_lawyer_ok" : "note_lawyer_no", { d: u, v: tg }]);
+  turncoatCheck(notes);
+  const events = [{ k: "night_header", r: g.round }, ...out.events];
+  Object.assign(g, { phase: "day", night: {}, votes: {}, vote_stage: null, storyKind: "morning" });
+  finishStory(events, notes);
+}
+const tally = () => {
+  const c = {};
+  for (const [v, cand] of Object.entries(G().votes)) if (isAlive(v) && isAlive(cand)) c[cand] = (c[cand] || 0) + 1;
+  return c;
+};
+function leaders() {
+  const c = tally(), vals = Object.values(c);
+  if (!vals.length) return [];
+  const top = Math.max(...vals);
+  return Object.keys(c).filter(k => c[k] === top);
+}
+const mayorAvailable = () => !G().mayor_used && alive().some(u => roleOf(u) === "mayor");
+function finalizeDay(target, mayor = false) {
+  const g = G();
+  for (const [voter, cand] of Object.entries(g.votes)) {
+    if (isAlive(voter) && G().players[cand] && teamOf(voter) === "town" && teamOf(cand) === "mafia") addPoints(voter, "vote");
+  }
+  const events = [{ k: "day_header", r: g.round }, ...g.tie_log];
+  const notes = [];
+  if (mayor && target) { g.mayor_used = true; events.push({ k: "mayor", v: target }); notes.push(["note_mayor", { v: target }]); }
+  else if (target && isAlive(target)) {
+    P(target).alive = false; events.push({ k: "exile", v: target, reveal: true }); turncoatCheck(notes);
+  } else events.push({ k: "no_exile" });
+  g.round += 1;
+  Object.assign(g, { phase: "night", night: {}, votes: {}, vote_stage: null, tie_log: [], rps: null, dice: null, decided: null, storyKind: "evening" });
+  finishStory(events, notes);
+}
+function finishStory(events, notes) {
+  const g = G(), w = checkWinner();
+  if (w) { events.push({ k: "win_" + w }); endGame(w); }
+  events.forEach(e => { if (e.i === undefined) e.i = rand(1000); });
+  g.events = events; g.notes = notes;
+  go("story");
+}
+function endGame(winner) {
+  const g = G();
+  g.phase = "over"; g.winner = winner;
+  for (const u of g.order) {
+    const p = P(u), won = teamOf(u) === winner;
+    if (won) addPoints(u, "win");
+    if (p.alive) addPoints(u, "survive");
+    if (rosterById(u)) {
+      const st = stats(u), pts = g.points[u] || 0;
+      st.points += pts; st.last = pts;
+      st.games.unshift({ date: new Date().toISOString(), role: p.role, team: teamOf(u), won, survived: p.alive, pts });
+      st.games = st.games.slice(0, 60);
+    }
+  }
+}
+function rpsResolve() {
+  const g = G(), rps = g.rps, ch = rps.choices;
+  const line = rps.duel.map(u => `${nm(u)} ${RPS_EMOJI[ch[u]]}`).join(" · ");
+  const symbols = [...new Set(Object.values(ch))];
+  if (symbols.length !== 2) { rps.log.push(line + " — 🔁"); rps.round++; rps.choices = {}; return; }
+  const [a, b] = symbols, win = RPS_BEATS[a] === b ? a : b;
+  const losers = rps.duel.filter(u => ch[u] !== win);
+  rps.log.push(line);
+  rps.duel = losers; rps.choices = {};
+  if (losers.length === 1) {
+    g.tie_log.push({ k: "tie_rps", v: losers[0], x: rps.log.join("\n") });
+    g.decided = losers[0]; g.vote_stage = "decided";
+  } else rps.round++;
+}
+function diceSetup() {
+  const g = G(), cands = leaders(), n = cands.length;
+  if (n > 6) {
+    const chosen = cands[rand(n)];
+    g.tie_log.push({ k: "tie_random", v: chosen }); g.decided = chosen; g.vote_stage = "decided"; return;
+  }
+  const allowed = 6 - (6 % n);
+  g.dice = { cands, allowed, value: null, miss: null };
+  g.vote_stage = "dice";
+}
+function diceMapping() {
+  const d = G().dice, n = d.cands.length;
+  return d.cands.map((c, i) => {
+    const faces = []; for (let v = 1; v <= d.allowed; v++) if ((v - 1) % n === i) faces.push(v);
+    return `${faces.join(", ")} → ${nm(c)}`;
+  });
+}
+
+// ---------------- rendering ----------------
+const app = document.getElementById("app");
+function go(view, arg = null) { S.view = view; S.arg = arg; save(); render(); window.scrollTo(0, 0); }
+
+function topBar(backTo, extra = "") {
+  const back = backTo ? `<button class="btn quiet back" data-act="go" data-arg="${backTo}">‹ ${t("back")}</button>` : "<span></span>";
+  return `<div class="top">${back}<div class="row">${extra}<button class="btn quiet" data-act="lang">${t("lang_btn")}</button></div></div>`;
+}
+const dock = (label, act, arg = "", disabled = false) =>
+  `<div class="dock"><div class="inner"><button class="btn primary" data-act="${act}" data-arg="${esc(arg)}" ${disabled ? "disabled" : ""}>${label}</button></div></div>`;
+const phaseHead = (glyph, title, sub = "") =>
+  `<div class="phase"><span class="glyph" aria-hidden="true">${glyph}</span><h1>${title}</h1>${sub ? `<p class="sub">${sub}</p>` : ""}</div>`;
+function tools() {
+  return `<div class="tools">
+    <button class="btn quiet" data-act="go" data-arg="lineup">📋 ${t("btn_view")}</button>
+    <button class="btn quiet" data-act="go" data-arg="remind">🎭 ${t("btn_remind")}</button>
+    <button class="btn quiet danger" data-act="go" data-arg="endconfirm">⏹ ${t("btn_end_game")}</button></div>`;
+}
+function rolesSummary(withPoints) {
+  return `<ul class="list">` + G().order.map(u => {
+    const p = P(u);
+    const team = roleOf(u) === "turncoat" && G().turned ? ` <span class="muted small">(${TEAM_NAMES[S.lang].mafia})</span>` : "";
+    return `<li><div class="item"><span class="grow"><span class="${p.alive ? "" : "dead"}">${nm(u)}</span><br>
+      <span class="muted small">${roleName(p.role, p.gender)}${team}</span></span>
+      ${p.alive ? "" : "<span aria-hidden='true'>💀</span>"}
+      ${withPoints ? `<span class="pts right">${G().points[u] || 0}</span>` : ""}</div></li>`;
+  }).join("") + `</ul>`;
+}
+
+// ----- home / lobby -----
+function viewHome() {
+  const inLobby = S.lobby.filter(id => rosterById(id));
+  const n = inLobby.length;
+  const rows = S.roster.map(p => {
+    const on = S.lobby.includes(p.id);
+    const gl = p.gender === "m" ? "♂" : p.gender === "f" ? "♀" : "·";
+    const gt = t(p.gender === "m" ? "gender_m" : p.gender === "f" ? "gender_f" : "gender_none");
+    return `<li><div class="item">
+      <button class="tick" aria-pressed="${on}" aria-label="${esc(p.nick)}" data-act="toggleIn" data-arg="${p.id}">${on ? "✓" : ""}</button>
+      <input class="nick" value="${esc(p.nick)}" maxlength="20" aria-label="${esc(p.nick)}" data-change="rename" data-arg="${p.id}">
+      <button class="mini" title="${gt}" aria-label="${gt}" data-act="gender" data-arg="${p.id}">${gl}</button>
+      <button class="mini" title="${t("delete")}" aria-label="${t("delete")} ${esc(p.nick)}" data-act="delPlayer" data-arg="${p.id}">✕</button>
+    </div></li>`;
+  }).join("");
+  let rolesInfo = `<p><b>${PRESET_NAMES[S.lang][S.prefs.preset]}</b></p>`;
+  if (n >= 3) {
+    const [roles, dropped] = planRoles(n);
+    rolesInfo += `<p>${rolesLine(roles)}</p>`;
+    if (dropped.length) rolesInfo += `<p class="muted small">⚠️ ${t("will_drop", { roles: uniqDropped(dropped) })}</p>`;
+  }
+  return `${topBar(null)}
+    <h1 class="brand">${t("title")}</h1>
+    <p class="tagline">${t("tagline")}</p>
+    <h2>${t("players")} <span class="muted small" style="font-family:var(--body)">${t("in_game_n", { n })}</span></h2>
+    ${S.roster.length ? `<ul class="list">${rows}</ul>` : `<p class="muted">${t("no_players")}</p>`}
+    <div class="add"><input id="newNick" maxlength="20" placeholder="${t("nick_ph")}" autocomplete="off" enterkeyhint="done">
+      <button class="btn" data-act="addPlayer">${t("add")}</button></div>
+    <p class="muted small" style="margin-top:8px">${t("gender_hint")}</p>
+    <h2>${t("preset")}</h2>
+    ${rolesInfo}
+    <div class="row"><button class="btn" data-act="go" data-arg="roles">🎭 ${t("roles_btn")}</button>
+      <button class="btn" data-act="go" data-arg="settings">⚙️ ${t("settings_btn")}</button></div>
+    <div class="tools"><button class="btn quiet" data-act="go" data-arg="board">🏆 ${t("board_btn")}</button></div>
+    <p class="muted small">${t("saved_local")}</p>
+    ${dock("🎲 " + t("deal"), "deal", "", n < 3)}`;
+}
+
+function viewRoles() {
+  const p = S.prefs, c = p.counts, n = Math.max(S.lobby.filter(id => rosterById(id)).length, 3);
+  const presets = ["classic", "extended", "chaos", "custom"].map(k =>
+    `<button class="chip" aria-pressed="${p.preset === k}" data-act="preset" data-arg="${k}">${PRESET_NAMES[S.lang][k]}</button>`).join("");
+  const rows = ROLE_ORDER.map(r => {
+    let val = c[r] || 0, label = String(val);
+    if (r === "mafia" && !val) label = `${t("auto")} (${mafiaCount(n)})`;
+    const team = MAFIA_TEAM.has(r) ? TEAM_NAMES[S.lang].mafia : TEAM_NAMES[S.lang].town;
+    return `<li><div class="item">
+      <details class="desc grow"><summary>${roleName(r)}<br><span class="muted small">${team}${r === "bestfriend" ? " · " + t("card_pair") : ""}</span></summary></details>
+      <div class="counter">
+        <button class="mini" aria-label="−" data-act="rc" data-arg="${r}:-">−</button>
+        <span class="val">${label}</span>
+        <button class="mini" aria-label="+" data-act="rc" data-arg="${r}:+">+</button>
+      </div></div>
+      <details class="desc"><summary class="muted small" style="padding:0 0 10px 34px">ⓘ</summary><p>${ROLE_DESC[S.lang][r]}</p></details>
+      ${r === "mafia" && val ? `<p style="margin:-4px 0 10px"><button class="btn quiet small" data-act="rc" data-arg="mafia:auto">↺ ${t("mafia_auto")}</button></p>` : ""}
+    </li>`;
+  }).join("");
+  return `${topBar("home")}<h2 style="margin-top:8px">${t("roles_title")}</h2>
+    <div class="chips">${presets}</div>
+    <p class="muted small" style="margin-top:14px">${t("roles_hint")}</p>
+    <ul class="list">${rows}</ul>
+    <p class="muted small" style="margin-top:12px">${roleName("civilian")} — ${ROLE_DESC[S.lang].civilian}</p>`;
+}
+
+function viewSettings() {
+  const p = S.prefs;
+  const val = (k, v) => (typeof v === "boolean" ? t(v ? "yes" : "no") : t(`val_${k}_${v}`));
+  const rows = Object.keys(SETTINGS_SPEC).map(k => `<li><div class="item"><span class="grow">${t("set_" + k)}</span>
+    <button class="chip" data-act="setting" data-arg="${k}">${val(k, p[k])}</button></div></li>`).join("");
+  return `${topBar("home")}<h2 style="margin-top:8px">${t("settings_title")}</h2>
+    <p class="muted small">${t("settings_hint")}</p><ul class="list">${rows}</ul>`;
+}
+
+function viewBoard() {
+  const list = [...S.roster].sort((a, b) => stats(b.id).points - stats(a.id).points);
+  const rows = list.map(p => {
+    const st = stats(p.id), wins = st.games.filter(x => x.won).length;
+    return `<li><button class="item" data-act="go" data-arg="history:${p.id}"><span class="grow"><b>${esc(p.nick)}</b><br>
+      <span class="muted small">${t("games_n", { n: st.games.length })} · ${t("wins_n", { n: wins })} · ${t("last_n", { n: st.last })}</span></span>
+      <span class="tally">${st.points}</span></button></li>`;
+  }).join("");
+  return `${topBar("home")}<h2 style="margin-top:8px">${t("board_title")}</h2>
+    ${list.length ? `<ul class="list">${rows}</ul>` : `<p class="muted">${t("no_games")}</p>`}
+    <p class="muted small" style="margin-top:14px">${t("points_rules")}</p>
+    <div class="tools"><button class="btn quiet danger" data-act="clearStats">${t("clear_stats")}</button></div>`;
+}
+function viewHistory(id) {
+  const p = rosterById(id); if (!p) return viewBoard();
+  const st = stats(id);
+  const fmt = new Intl.DateTimeFormat(S.lang === "ru" ? "ru-RU" : "en-US", { dateStyle: "medium", timeStyle: "short" });
+  const rows = st.games.map(x => `<li><div class="item"><span class="grow">${roleName(x.role, p.gender)}<br>
+    <span class="muted small">${fmt.format(new Date(x.date))} · ${t(x.won ? "won" : "lost")}${x.survived ? " · " + t("survived") : ""}</span></span>
+    <span class="tally">+${x.pts}</span></div></li>`).join("");
+  return `${topBar("board")}<h2 style="margin-top:8px">${esc(p.nick)}</h2>
+    <p><span class="tally">${st.points}</span> ${t("points")}</p>
+    <h2>${t("history")}</h2>${rows ? `<ul class="list">${rows}</ul>` : `<p class="muted">${t("no_games")}</p>`}`;
+}
+
+// ----- secret role screens -----
+function roleCard(u) {
+  const g = G(), p = P(u), role = p.role;
+  let extra = "";
+  if (inCircle(u)) {
+    const mates = g.order.filter(x => x !== u && inCircle(x)).map(x => `${nm(x)} (${roleName(roleOf(x), P(x).gender, false)})`);
+    if (mates.length) extra += `<p><b>${t("your_team")}:</b> ${mates.join(", ")}</p>`;
+  }
+  if (role === "turncoat" && g.turned) extra += `<p>${t("turned_now")}</p>`;
+  if (role === "bestfriend") {
+    const f = g.order.find(x => x !== u && roleOf(x) === "bestfriend");
+    if (f) extra += `<p>${gfmt(t("your_friend", { v: nm(f) }), P(f).gender)}</p>`;
+  }
+  if (role === "lucky" && g.lucky_used.includes(u)) extra += `<p>${t("lucky_spent")}</p>`;
+  if (role === "lawyer" && g.lawyer_found.includes(u)) extra += `<p>${t("lawyer_done")}</p>`;
+  return `<div class="card">
+    <p class="muted">${nm(u)} · ${t("your_role")}</p>
+    <div class="emoji" aria-hidden="true">${ROLE_EMOJI[role]}</div>
+    <h1>${roleName(role, p.gender, false)}</h1>
+    <p class="team">${TEAM_NAMES[S.lang][teamOf(u)]}</p>
+    <p>${ROLE_DESC[S.lang][role]}</p>
+    ${extra ? `<div class="extra">${extra}</div>` : ""}
+    <p class="muted small" style="margin-top:16px">${p.alive ? "🤫 " + t("keep_secret") : "💀 " + t("you_are_out")}</p></div>`;
+}
+function viewPass(u) {
+  return `<div class="pass"><p class="muted">${t("pass_to")}</p><div class="big">${nm(u)}</div>
+    <button class="btn primary block" data-act="showCard" data-arg="${u}">${t("show_role")}</button>
+    <p style="margin-top:12px"><button class="btn quiet" data-act="go" data-arg="${S.ret || "game"}">‹ ${t("back")}</button></p></div>`;
+}
+function viewCard(u) {
+  return `${roleCard(u)}${dock("🙈 " + t("hide_pass"), "hideCard", u)}`;
+}
+function viewReveal() {
+  const g = G(), left = g.order.filter(u => !g.seen.includes(u)).length;
+  const rows = g.order.map(u => `<li><button class="item" data-act="pass" data-arg="${u}">
+    <span class="grow">${nm(u)}</span><span aria-hidden="true">${g.seen.includes(u) ? "✓" : "›"}</span></button></li>`).join("");
+  const warn = g.dropped.length ? `<p class="banner small">⚠️ ${t("dropped", { roles: uniqDropped(g.dropped) })}</p>` : "";
+  return `${topBar(null)}${phaseHead("🎭", t("reveal_title"), t("reveal_hint"))}${warn}
+    <ul class="list">${rows}</ul>
+    <p class="muted small" style="margin-top:10px">${left ? t("left_to_see", { n: left }) : ""}</p>
+    <div class="tools"><button class="btn quiet danger" data-act="go" data-arg="endconfirm">⏹ ${t("btn_end_game")}</button></div>
+    ${dock("▶ " + t("start_game"), "startPlay", "", left > 0)}`;
+}
+function viewRemind() {
+  const rows = G().order.map(u => `<li><button class="item" data-act="pass" data-arg="${u}">
+    <span class="grow ${P(u).alive ? "" : "dead"}">${nm(u)}</span><span aria-hidden="true">›</span></button></li>`).join("");
+  return `${topBar("game")}<h2 style="margin-top:8px">${t("remind_title")}</h2><p class="muted">${t("remind_hint")}</p><ul class="list">${rows}</ul>`;
+}
+
+// ----- night -----
+function actorLine(u, pv) {
+  const role = roleOf(u), sel = G().night[u];
+  let target;
+  if (role === "driver") { const pair = sel || []; target = pair.map(nm).join(" ⇄ ") + (pair.length === 1 ? " ⇄ …" : ""); target = target || "—"; }
+  else target = sel ? nm(sel) : "—";
+  let flags = "";
+  if (pv.blocked.has(u)) flags += `<span class="flag">🚫 ${t("blocked")}</span>`;
+  if (pv.checks[u]) { const [tg, m] = pv.checks[u]; flags += `<span class="preview small">⇒ ${nm(tg)}: <b>${t(m ? "res_mafia" : "res_town")}</b></span>`; }
+  if (pv.lawyer[u]) { const [tg, ok] = pv.lawyer[u]; flags += `<span class="preview small">⇒ ${nm(tg)}: <b>${t(ok ? "res_right" : "res_wrong")}</b></span>`; }
+  return `<li><button class="item act" data-act="go" data-arg="pick:${u}"><span class="grow">
+    <span class="who">${roleName(role, P(u).gender)}</span> <span class="muted">${nm(u)}</span><br>
+    <span class="target">→ ${target}</span>${flags ? "<br>" + flags : ""}</span><span aria-hidden="true">›</span></button></li>`;
+}
+function viewNight() {
+  const g = G(), pv = resolve();
+  let rows = "";
+  if (killers().length) {
+    const sel = g.night.mafia;
+    rows += `<li><button class="item act" data-act="go" data-arg="pick:mafia"><span class="grow">
+      <span class="who">${ROLE_EMOJI.mafia} ${t("mafia_team_kill")}</span> <span class="muted">${killers().map(nm).join(", ")}</span><br>
+      <span class="target">→ ${sel ? nm(sel) : "—"}</span></span><span aria-hidden="true">›</span></button></li>`;
+  }
+  rows += nightActors().map(u => actorLine(u, pv)).join("");
+  return `${topBar(null)}${phaseHead("🌙", `${t("night")} ${g.round}`)}
+    <ul class="list">${rows}</ul>
+    <p class="muted small" style="margin-top:10px">${t("night_hint")}</p>
+    ${tools()}${dock("🌅 " + t("btn_end_night"), "endNight")}`;
+}
+function pickCandidates(actor) {
+  if (actor === "mafia") return alive().filter(u => !inCircle(u));
+  const role = roleOf(actor), c = cfg();
+  let cands = alive();
+  if (NO_SELF.has(role) || (role === "doctor" && !c.doctor_self)) cands = cands.filter(u => u !== actor);
+  if (role === "doctor" && !c.doctor_repeat) cands = cands.filter(u => u !== G().last_heal[actor]);
+  return cands;
+}
+function viewPick(actor) {
+  const g = G();
+  let title, chosen;
+  if (actor === "mafia") { title = `${ROLE_EMOJI.mafia} ${t("pick_mafia")}`; chosen = [g.night.mafia]; }
+  else {
+    const role = roleOf(actor);
+    title = `${roleName(role, P(actor).gender)} ${nm(actor)}: ${t("pick_" + role)}`;
+    const sel = g.night[actor]; chosen = Array.isArray(sel) ? sel : [sel];
+  }
+  const chips = pickCandidates(actor).map(u =>
+    `<button class="chip" aria-pressed="${chosen.includes(u)}" data-act="pickTarget" data-arg="${actor}|${u}">${nm(u)}</button>`).join("");
+  return `${topBar("game")}<h2 style="margin-top:8px;font-size:22px">${title}</h2>
+    <div class="chips">${chips}</div>
+    <p style="margin-top:16px"><button class="btn" data-act="pickTarget" data-arg="${actor}|">🚫 ${t("skip")}</button></p>`;
+}
+
+// ----- day -----
+function exileButtons(cand) {
+  let h = `<button class="btn primary block" data-act="exile" data-arg="${cand}">⚖️ ${t("btn_exile", { v: nm(cand) })}</button>`;
+  if (mayorAvailable()) h += `<button class="btn block" data-act="mayor" data-arg="${cand}">🎩 ${t("btn_mayor")}</button>`;
+  h += `<button class="btn block" data-act="exile" data-arg="">🤝 ${t("btn_no_exile")}</button>`;
+  return `<div class="stack" style="margin-top:16px">${h}</div>`;
+}
+function viewDay() {
+  const g = G(), st = g.vote_stage;
+  if (g.round === 0) {
+    return `${topBar(null)}${phaseHead("☀️", t("intro_day"), t("intro_hint"))}${rolesAliveList()}${tools()}${dock("🌙 " + t("btn_start_night"), "startNight")}`;
+  }
+  const head = phaseHead("☀️", `${t("day")} ${g.round}`);
+  if (st === "open") return head + viewVote();
+  if (st === "result") return head + viewResult();
+  if (st === "rps" && g.rps) return head + viewRps();
+  if (st === "dice" && g.dice) return head + viewDice();
+  if (st === "decided" && g.decided) {
+    let die = "";
+    if (g.dice && g.dice.value) die = dieFace(g.dice.value) + `<ul class="facemap small">${diceMapping().map(x => `<li>${x}</li>`).join("")}</ul>`;
+    const last = g.tie_log[g.tie_log.length - 1];
+    const log = last && last.k === "tie_rps" ? `<p class="banner small">${last.x.replace(/\n/g, "<br>")}</p>` : "";
+    return `${topBar(null)}${head}${die}${log}<h2>${t("decided", { v: nm(g.decided) })}</h2>${exileButtons(g.decided)}${tools()}`;
+  }
+  return `${topBar(null)}${head}<p class="muted">${t("alive")}: ${alive().length}</p>${rolesAliveList()}${tools()}${dock("🗳 " + t("open_vote"), "openVote")}`;
+}
+function rolesAliveList() {
+  return `<ul class="list">${G().order.map(u => `<li><div class="item"><span class="grow ${P(u).alive ? "" : "dead"}">${nm(u)}</span></div></li>`).join("")}</ul>`;
+}
+function viewVote() {
+  const g = G(), a = alive(), c = tally();
+  const rows = a.map(v => {
+    const opts = [`<option value="">${t("no_vote_opt")}</option>`].concat(a.filter(x => x !== v).map(x =>
+      `<option value="${x}" ${g.votes[v] === x ? "selected" : ""}>${nm(x)}</option>`)).join("");
+    return `<li><div class="item vote"><span class="grow">${nm(v)}</span>
+      <select aria-label="${nm(v)}" data-change="vote" data-arg="${v}">${opts}</select></div></li>`;
+  }).join("");
+  const voted = a.filter(v => g.votes[v]).length;
+  const max = Math.max(1, ...Object.values(c));
+  const board = Object.entries(c).sort((x, y) => y[1] - x[1]).map(([cand, n]) =>
+    `<li><div class="item"><span class="grow">${nm(cand)}<div class="bar" style="width:${(n / max) * 100}%"></div></span><span class="tally">${n}</span></div></li>`).join("");
+  return `${topBar(null)}<h2>${t("vote_title")}</h2><p class="muted small">${t("vote_hint")}</p>
+    <ul class="list">${rows}</ul>
+    <p class="muted small" style="margin-top:10px">${t("voted_n", { a: voted, b: a.length })}</p>
+    ${board ? `<ul class="list">${board}</ul>` : ""}
+    ${tools()}${dock("🔒 " + t("close_vote"), "closeVote")}`;
+}
+function viewResult() {
+  const c = tally(), lead = leaders();
+  const lines = Object.entries(c).sort((x, y) => y[1] - x[1]).map(([cand, n]) =>
+    `<li><div class="item"><span class="grow">${nm(cand)}</span><span class="tally">${n}</span></div></li>`).join("");
+  let body = `<h2>${t("vote_result")}</h2>` + (lines ? `<ul class="list">${lines}</ul>` : `<p class="muted">${t("no_votes")}</p>`);
+  if (lead.length === 1) body += `<p style="margin-top:14px">${t("leader", { v: nm(lead[0]) })}</p>` + exileButtons(lead[0]);
+  else if (lead.length > 1) {
+    body += `<p style="margin-top:14px">${t("tie", { v: lead.map(nm).join(", ") })}</p><p class="muted">${t("tie_choose")}</p>`;
+    const star = cfg().tie_default;
+    const opts = [["nobody", "🤝", "exile", ""], ["rps", "✊", "rps", ""], ["random", "🎲", "dice", ""], ["revote", "🔁", "revote", ""]];
+    opts.sort((x, y) => (x[0] !== star) - (y[0] !== star));
+    body += `<div class="stack">` + opts.map(([k, emo, act, arg]) =>
+      `<button class="btn block ${k === star ? "primary" : ""}" data-act="${act}" data-arg="${arg}">${k === star ? "⭐ " : ""}${emo} ${t("tie_" + k)}</button>`).join("") + `</div>`;
+  } else {
+    body += `<div class="stack" style="margin-top:14px"><button class="btn block" data-act="exile" data-arg="">🤝 ${t("btn_no_exile")}</button>
+      <button class="btn block" data-act="revote">🔁 ${t("tie_revote")}</button></div>`;
+  }
+  return `${topBar(null)}${body}${tools()}`;
+}
+function viewRps() {
+  const rps = G().rps;
+  const rows = rps.duel.map(u => `<li><button class="item" data-act="go" data-arg="rps_pick:${u}" ${rps.choices[u] ? "disabled" : ""}>
+    <span class="grow">${nm(u)}</span><span>${rps.choices[u] ? "✅" : "⏳"}</span></button></li>`).join("");
+  const log = rps.log.length ? `<div class="banner small">${rps.log.join("<br>")}</div>` : "";
+  return `${topBar(null)}<h2>✊✋✌️ ${t("rps_title")} <span class="muted small" style="font-family:var(--body)">${t("rps_round", { n: rps.round })}</span></h2>
+    <p class="muted small">${t("rps_hint")}</p>${log}<ul class="list">${rows}</ul>
+    <div class="stack" style="margin-top:16px"><button class="btn block" data-act="rpsRandom">🎲 ${t("btn_rps_random")}</button>
+    <button class="btn block" data-act="rpsCancel">✖️ ${t("btn_rps_cancel")}</button></div>${tools()}`;
+}
+function viewRpsPick(u) {
+  const rivals = G().rps.duel.filter(x => x !== u).map(nm).join(", ");
+  return `<div class="pass"><p class="muted">${t("pass_to")}</p><div class="big">${nm(u)}</div>
+    <p>${t("rps_rivals", { v: rivals })}</p><p class="muted">${t("rps_your_move")}</p></div>
+    <div class="rps">${["r", "p", "s"].map(c => `<button data-act="rpsChoose" data-arg="${u}|${c}" aria-label="${c}">${RPS_EMOJI[c]}</button>`).join("")}</div>
+    <p style="margin-top:16px;text-align:center"><button class="btn quiet" data-act="go" data-arg="game">‹ ${t("back")}</button></p>`;
+}
+const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+const dieFace = v => `<div class="die" id="die" role="img" aria-label="${v}">${[...Array(9)].map((_, i) => `<span class="${PIPS[v].includes(i) ? "on" : ""}"></span>`).join("")}</div>`;
+function viewDice() {
+  const d = G().dice;
+  return `${topBar(null)}<h2>🎲 ${t("dice_title")}</h2><ul class="facemap">${diceMapping().map(x => `<li>${x}</li>`).join("")}</ul>
+    ${dieFace(d.miss || 6)}${d.miss ? `<p class="banner small">${t("dice_again", { n: d.miss })}</p>` : ""}
+    ${tools()}${dock("🎲 " + t("dice_roll"), "rollDice")}`;
+}
+
+// ----- story / over / misc -----
+function renderEvents() {
+  const g = G();
+  return g.events.map(e => {
+    const variants = STORIES[S.lang][e.k];
+    let text = variants[(e.i || 0) % variants.length];
+    const u = e.v;
+    text = gfmt(text, u && g.players[u] ? P(u).gender : null);
+    text = text.replace("{r}", e.r ?? "").replace(/\{v\}/g, u ? nm(u) : "").replace("{x}", e.x ?? "").replace(/\n/g, "<br>");
+    if (u && e.reveal) {
+      const mode = g.cfg.reveal;
+      if (mode === "full") text += "<br>" + t("reveal_role", { role: roleName(roleOf(u), P(u).gender) });
+      if (mode === "team") text += "<br>" + t("reveal_team", { team: TEAM_NAMES[S.lang][teamOf(u)] });
+    }
+    return `<p>${text}</p>`;
+  }).join("");
+}
+function viewStory() {
+  const g = G();
+  const notes = g.notes.map(([key, params]) => {
+    const kw = {}; for (const [k, v] of Object.entries(params)) kw[k] = nm(v);
+    return `<li>${t(key, kw)}</li>`;
+  }).join("");
+  const hasChecks = g.notes.some(([k]) => k.startsWith("note_check") || k.startsWith("note_lawyer"));
+  const turn = g.turnPending.map(u => `<p>${t("turncoat_pass", { v: nm(u) })}</p>
+    <button class="btn block" data-act="pass" data-arg="${u}">🐺 ${t("show_card", { v: nm(u) })}</button>`).join("");
+  const glyph = g.storyKind === "morning" ? "🌅" : "🌆";
+  const host = notes || turn ? `<details class="hostnotes" open><summary><b>🤫 ${t("for_host")}</b></summary>
+    ${notes ? `<ul>${notes}</ul>` : ""}${hasChecks ? `<p class="muted small" style="margin-top:8px">${t("note_tell")}</p>` : ""}
+    ${turn ? `<div class="stack" style="margin-top:12px">${turn}</div>` : ""}</details>` : "";
+  return `${topBar(null)}${phaseHead(glyph, t("story_title"))}<div class="story">${renderEvents()}</div>${host}
+    ${dock("➡️ " + t("next"), "storyNext")}`;
+}
+function viewOver() {
+  const g = G();
+  return `${topBar(null)}<div class="win">${phaseHead("🏁", t("game_over"), g.winner ? TEAM_NAMES[S.lang][g.winner] : "")}</div>
+    ${rolesSummary(true)}
+    <div class="stack" style="margin-top:20px"><button class="btn primary block" data-act="rematch">🔁 ${t("rematch")}</button>
+    <button class="btn block" data-act="toLobby">🏠 ${t("to_lobby")}</button></div>`;
+}
+function viewLineup() { return `${topBar("game")}<h2 style="margin-top:8px">📋 ${t("btn_view")}</h2>${rolesSummary(true)}`; }
+function viewEndConfirm() {
+  return `${topBar("game")}<h2 style="margin-top:8px">${t("end_confirm")}</h2>
+    <div class="stack" style="margin-top:16px"><button class="btn primary block" data-act="abort">${t("end_yes")}</button>
+    <button class="btn block" data-act="go" data-arg="game">${t("end_no")}</button></div>`;
+}
+function viewGame() {
+  const ph = G().phase;
+  if (ph === "reveal") return viewReveal();
+  if (ph === "night") return viewNight();
+  if (ph === "day") return viewDay();
+  return viewOver();
+}
+
+function theme() {
+  const g = G(), v = S.view;
+  if (!g) return "day";
+  if (["card", "pass", "reveal"].includes(v) || g.phase === "reveal") return "night";
+  if (v === "story") return g.storyKind === "evening" ? "night" : "day";
+  if (g.phase === "night") return "night";
+  return "day";
+}
+function render() {
+  const [v, a] = S.view.includes(":") ? S.view.split(":") : [S.view, S.arg];
+  let html;
+  const needGame = !["home", "roles", "settings", "board", "history"].includes(v);
+  if (needGame && !G()) { S.view = "home"; return render(); }
+  switch (v) {
+    case "home": html = G() ? viewGame() : viewHome(); break;
+    case "roles": html = viewRoles(); break;
+    case "settings": html = viewSettings(); break;
+    case "board": html = viewBoard(); break;
+    case "history": html = viewHistory(a); break;
+    case "pass": html = viewPass(a); break;
+    case "card": html = viewCard(a); break;
+    case "remind": html = viewRemind(); break;
+    case "pick": html = viewPick(a); break;
+    case "rps_pick": html = G().rps ? viewRpsPick(a) : viewGame(); break;
+    case "story": html = viewStory(); break;
+    case "lineup": html = viewLineup(); break;
+    case "endconfirm": html = viewEndConfirm(); break;
+    default: html = viewGame();
+  }
+  document.documentElement.lang = S.lang;
+  document.title = `${t("title")} — ${S.lang === "ru" ? "игра для ведущего" : "host's companion"}`;
+  document.body.dataset.theme = theme();
+  app.innerHTML = html;
+}
+
+// ---------------- actions ----------------
+function addPlayer() {
+  const inp = document.getElementById("newNick");
+  const nick = (inp.value || "").trim().replace(/\s+/g, " ");
+  if (nick.length < 2 || nick.length > 20) { toast(t("nick_bad")); inp.focus(); return; }
+  if (S.roster.some(p => p.nick.toLowerCase() === nick.toLowerCase())) { toast(t("nick_taken")); inp.focus(); return; }
+  const id = "p" + S.nextId++;
+  S.roster.push({ id, nick, gender: null });
+  S.lobby.push(id);
+  save(); render();
+  document.getElementById("newNick").focus();
+}
+const ACT = {
+  go(arg) {
+    if (arg.startsWith("history:")) return go("history", arg.slice(8));
+    if (arg.startsWith("pick:")) return go("pick", arg.slice(5));
+    if (arg.startsWith("rps_pick:")) return go("rps_pick", arg.slice(9));
+    go(arg);
+  },
+  lang() { S.lang = S.lang === "ru" ? "en" : "ru"; save(); render(); },
+  addPlayer,
+  toggleIn(id) { S.lobby = S.lobby.includes(id) ? S.lobby.filter(x => x !== id) : [...S.lobby, id]; save(); render(); },
+  gender(id) { const p = rosterById(id); p.gender = p.gender === null ? "m" : p.gender === "m" ? "f" : null; save(); render(); },
+  delPlayer(id) { S.roster = S.roster.filter(p => p.id !== id); S.lobby = S.lobby.filter(x => x !== id); save(); render(); },
+  deal() { deal(S.roster.filter(p => S.lobby.includes(p.id)).map(p => p.id)); },
+  preset(k) { S.prefs.counts = { ...(k === "custom" ? S.prefs.custom : PRESETS[k]) }; S.prefs.preset = k; save(); render(); },
+  rc(arg) {
+    const [role, op] = arg.split(":"), c = S.prefs.counts;
+    if (op === "auto") c.mafia = 0;
+    else {
+      let cur = c[role] || 0;
+      if (role === "mafia" && cur === 0) cur = mafiaCount(Math.max(S.lobby.filter(id => rosterById(id)).length, 3));
+      const low = role === "mafia" ? 1 : 0;
+      c[role] = Math.max(low, Math.min(MAX_COUNT[role] || 1, cur + (op === "+" ? 1 : -1)));
+    }
+    S.prefs.preset = "custom"; S.prefs.custom = { ...c }; save(); render();
+  },
+  setting(k) { const o = SETTINGS_SPEC[k]; S.prefs[k] = o[(o.indexOf(S.prefs[k]) + 1) % o.length]; save(); render(); },
+  clearStats() { if (confirm(t("clear_confirm"))) { S.stats = {}; save(); render(); } },
+  pass(u) { S.ret = S.view === "story" ? "story" : "game"; go("pass", u); },
+  showCard(u) { go("card", u); },
+  hideCard(u) {
+    const g = G();
+    if (!g.seen.includes(u)) g.seen.push(u);
+    g.turnPending = g.turnPending.filter(x => x !== u);
+    go(S.ret || "game");
+  },
+  startPlay,
+  startNight() { Object.assign(G(), { phase: "night", round: 1, night: {} }); go("game"); },
+  pickTarget(arg) {
+    const [actor, target] = arg.split("|"), g = G();
+    if (actor !== "mafia" && !nightActors().includes(actor)) return go("game");
+    if (actor !== "mafia" && roleOf(actor) === "driver") {
+      let pair = [...(g.night[actor] || [])];
+      if (!target) pair = [];
+      else if (pair.includes(target)) pair = pair.filter(x => x !== target);
+      else if (pair.length < 2) pair.push(target);
+      else pair = [target];
+      g.night[actor] = pair;
+      return pair.length === 2 || !target ? go("game") : (save(), render());
+    }
+    if (target) g.night[actor] = target; else delete g.night[actor];
+    go("game");
+  },
+  endNight() { applyNight(); },
+  storyNext() { G().turnPending = []; go("game"); },
+  openVote() { Object.assign(G(), { votes: {}, vote_stage: "open" }); go("game"); },
+  closeVote() { G().vote_stage = "result"; go("game"); },
+  revote() { const g = G(); g.tie_log.push({ k: "tie_revote" }); Object.assign(g, { votes: {}, vote_stage: "open", rps: null, dice: null, decided: null }); go("game"); },
+  exile(cand) { finalizeDay(cand || null); },
+  mayor(cand) { if (mayorAvailable()) finalizeDay(cand, true); },
+  rps() { if (leaders().length > 1) { Object.assign(G(), { rps: { duel: leaders(), choices: {}, round: 1, log: [] }, vote_stage: "rps" }); } go("game"); },
+  rpsChoose(arg) {
+    const [u, c] = arg.split("|"), rps = G().rps;
+    if (!rps || !rps.duel.includes(u)) return go("game");
+    rps.choices[u] = c;
+    if (rps.duel.every(x => rps.choices[x])) rpsResolve();
+    go("game");
+  },
+  rpsRandom() { const rps = G().rps; rps.duel.forEach(u => { if (!rps.choices[u]) rps.choices[u] = "rps"[rand(3)]; }); rpsResolve(); go("game"); },
+  rpsCancel() { Object.assign(G(), { rps: null, vote_stage: "result" }); go("game"); },
+  dice() { if (leaders().length > 1) diceSetup(); go("game"); },
+  rollDice() {
+    const g = G(), d = g.dice;
+    const finish = () => {
+      const value = 1 + rand(6);
+      if (value > d.allowed) { d.miss = value; save(); render(); return; }
+      d.value = value; d.miss = null;
+      const chosen = d.cands[(value - 1) % d.cands.length];
+      g.tie_log.push({ k: "tie_dice", v: chosen, x: `🎲 ${value}\n${diceMapping().join("\n")}` });
+      g.decided = chosen; g.vote_stage = "decided";
+      save(); render();
+    };
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return finish();
+    const btn = document.querySelector(".dock .btn"); if (btn) btn.disabled = true;
+    let k = 0;
+    const spin = setInterval(() => {
+      const el = document.getElementById("die");
+      if (el) el.outerHTML = dieFace(1 + rand(6));
+      if (++k >= 10) { clearInterval(spin); finish(); }
+    }, 90);
+  },
+  rematch() { const ids = G().ids || G().order; S.lobby = ids.filter(id => rosterById(id)); S.game = null; deal(S.lobby); },
+  toLobby() { S.game = null; go("home"); },
+  abort() { const ids = G().order; S.game = null; S.lobby = ids.filter(id => rosterById(id)); go("home"); },
+};
+const CHANGE = {
+  rename(id, el) {
+    const p = rosterById(id), nick = el.value.trim().replace(/\s+/g, " ");
+    if (nick.length < 2 || nick.length > 20) { toast(t("nick_bad")); el.value = p.nick; return; }
+    if (S.roster.some(x => x.id !== id && x.nick.toLowerCase() === nick.toLowerCase())) { toast(t("nick_taken")); el.value = p.nick; return; }
+    p.nick = nick; save(); render();
+  },
+  vote(voter, el) { const g = G(); if (el.value) g.votes[voter] = el.value; else delete g.votes[voter]; save(); render(); },
+};
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-act]");
+  if (!el || el.disabled) return;
+  const fn = ACT[el.dataset.act];
+  if (fn) { e.preventDefault(); fn(el.dataset.arg || "", el); }
+});
+document.addEventListener("change", e => {
+  const el = e.target.closest("[data-change]");
+  if (el && CHANGE[el.dataset.change]) CHANGE[el.dataset.change](el.dataset.arg, el);
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && e.target.id === "newNick") { e.preventDefault(); addPlayer(); }
+  if (e.key === "Enter" && e.target.classList.contains("nick")) e.target.blur();
+});
+
+render();
+</script>
+</body>
+</html>
