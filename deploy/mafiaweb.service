@@ -1,0 +1,16 @@
+[Unit]
+Description=MafiaNext Web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/mafia
+EnvironmentFile=/home/ubuntu/mafia/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/mafia/venv/bin/python web_server.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
