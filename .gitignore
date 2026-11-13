@@ -1,0 +1,12 @@
+# secrets and data — never commit
+.env
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.migrated
+profiles.json
+# python
+venv/
+__pycache__/
+*.pyc
